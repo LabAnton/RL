@@ -3,42 +3,82 @@ import model
 import matplotlib.pyplot as plt
 import torch as t
 import numpy as np
+from tqdm import tqdm
 
 #Parameters
-k = 10 
-mean = 2 
-var = 1.5
-epsilon = [0, 0.01, 0.1] 
-episodes = 2000
+k = 10
+mean = 1 
+var = 1
+epsilon = 0.1 
+episodes = 10000
+alpha = 0.1 
+moving_mean = 0
+runs = 250
 
-machine = kS.kSlotMachine(k, mean, var)
-print(machine.k)
-optimal = t.argmax(machine.k).item()
+machine = kS.kSlotMachine(k, mean, var, moving_mean)
 
-rewards = t.zeros(len(epsilon), episodes) 
-cum_reward = t.zeros(len(epsilon), episodes) 
-optimal_action = t.zeros(len(epsilon), episodes)
-cum_optimal = t.zeros(len(epsilon), episodes)
+runs_cum_reward_avg = t.zeros(episodes)
+runs_cum_optimal_avg = t.zeros(episodes)
+runs_cum_reward_weighted = t.zeros(episodes)
+runs_cum_optimal_weighted = t.zeros(episodes)
 
-for num, epi in enumerate(epsilon):
-    agent = model.Bandit(k, epsilon[num])
-    for i in range(episodes):
+for run in tqdm(range(runs)):
+    rewards_avg = t.zeros(episodes)
+    rewards_weighted = t.zeros(episodes)
 
-        action = agent.ChooseLever()
-        reward = machine.Pick_NormDist(action)    
-        agent.UpdateAverage(reward, action) 
+    optimal_avg = t.zeros(episodes)
+    optimal_weighted = t.zeros(episodes)
 
-        rewards[num, i] = reward
-        cum_reward[num, i] = t.sum(rewards, dim = 1)[num]/i
-        if action == optimal:
-           optimal_action[num, i] = 1 
-        cum_optimal[num, i] = t.sum(optimal_action, dim = 1)[num]/i 
-             
+    agent_avg = model.Bandit(k, epsilon,  0)
+    agent_weighted = model.Bandit(k, epsilon, alpha)
 
-color = iter(plt.cm.rainbow(np.linspace(0, 1, 3)))
-for index, value in enumerate(epsilon):
-    c = next(color)
-    plt.plot([*range(episodes)], cum_reward[index, :].numpy(), c=c, label = f"Epsilon: {value}")
+    for epi in range(episodes):
+        optimal = t.argmax(machine.k).item()
+        action_avg = agent_avg.ChooseLever()
+        action_weighted = agent_weighted.ChooseLever()
+
+        reward_avg = machine.Stat_NormDist(action_avg)
+        reward_weighted = machine.Stat_NormDist(action_weighted)
+
+        agent_avg.Update_Average(reward_avg, action_avg)
+        agent_weighted.Update_WeightedAverage(reward_weighted, action_weighted)
+
+        machine.Update_NormDist()
+
+        rewards_avg[epi] = reward_avg
+        rewards_weighted[epi] = reward_weighted 
+
+        if action_avg == optimal:
+            optimal_avg[epi] = 1
+        if action_weighted == optimal:
+            optimal_weighted[epi] = 1
+            
+    cum_reward_avg = t.cumsum(rewards_avg, dim=0) / t.arange(1, episodes+1)
+    cum_optimal_avg = t.cumsum(optimal_avg, dim=0) / t.arange(1, episodes+1)
+
+    cum_reward_weighted = t.cumsum(rewards_weighted, dim=0) / t.arange(1, episodes+1)
+    cum_optimal_weighted = t.cumsum(optimal_weighted, dim=0) / t.arange(1, episodes+1)
+     
+    runs_cum_reward_avg += cum_reward_avg
+    runs_cum_optimal_avg += cum_optimal_avg
+    runs_cum_reward_weighted += cum_reward_weighted
+    runs_cum_optimal_weighted += cum_optimal_weighted 
+
+color = iter(plt.cm.rainbow(np.linspace(0, 1, 4)))
+c = next(color)
+plt.plot([*range(episodes)], runs_cum_reward_avg.numpy() / runs, c=c, label = "Avg")
+c = next(color)
+plt.plot([*range(episodes)], runs_cum_reward_weighted.numpy() / runs, c=c, label = "Weighted")
 plt.legend(loc = "lower right")
 plt.show()
+
+c = next(color)
+plt.plot([*range(episodes)], runs_cum_optimal_avg.numpy() / runs, c=c, label = "Avg")
+c = next(color)
+plt.plot([*range(episodes)], runs_cum_optimal_weighted.numpy() / runs, c=c, label = "Weighted")
+plt.legend(loc = "lower right")
+plt.show()
+
+
+
 
