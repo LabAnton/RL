@@ -7,13 +7,13 @@ from tqdm import tqdm
 
 #Parameters
 k = 10
-mean = 1 
-var = 1
+mean = 0 
+var = 2 
 epsilon = 0.1 
-episodes = 10000
+episodes = 20000
 alpha = 0.1 
 moving_mean = 0
-runs = 250
+runs = 150 
 
 machine = kS.kSlotMachine(k, mean, var, moving_mean)
 
