@@ -8,10 +8,10 @@ from tqdm import tqdm
 #Parameters
 k = 10 
 mean = 2 
-var = 1
+var = 2 
 epsilon = [0, 0.01, 0.1] 
 episodes = 2000 
-runs = 1000
+runs = 200
 
 machine = kS.kSlotMachine(k, mean, var)
 print(machine.k)
@@ -32,9 +32,9 @@ for run in tqdm(range(runs)):
         agent = model.Bandit(k, epsilon[num])
         for i in range(episodes):
 
-            action = agent.ChooseLever()
+            action = agent.EpsilonGreedy()
             reward = machine.Stat_NormDist(action)    
-            agent.UpdateAverage(reward, action) 
+            agent.Update_Average(reward, action) 
 
             rewards[num, i] = reward
             #cum_reward[num, i] = t.sum(rewards, dim = 1)[num]/i

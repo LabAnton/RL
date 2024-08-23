@@ -1,7 +1,7 @@
 import torch as t
 
 class kSlotMachine:
-    def __init__(self, k: int, mean: int, var: int, moving_mean: int):
+    def __init__(self, k: int, mean: int, var: int, moving_mean = None):
         # k is the number of arms or choices
         # mean is the highest and lowest value the distribution can have 
         # var is the variance of the distirbution
