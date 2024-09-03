@@ -7,79 +7,43 @@ from tqdm import tqdm
 
 #Parameters
 k = 10
-mean = 0 
-var = 2 
-epsilon = 0.1 
-episodes = 40000
-alpha = 0.1 
+mean = 2 
+var = 3 
+alphas = [1/8, 1/4, 1/2, 1, 2, 4] 
+episodes = 10000 
 moving_mean = 0
-runs = 150 
+runs = 40 
 
-machine = kS.kSlotMachine(k, mean, var, moving_mean)
+runs_optimal_acts = t.zeros(len(alphas),episodes)
+for n, alpha in enumerate(alphas):
 
-runs_cum_reward_avg = t.zeros(episodes)
-runs_cum_optimal_avg = t.zeros(episodes)
-runs_cum_reward_weighted = t.zeros(episodes)
-runs_cum_optimal_weighted = t.zeros(episodes)
+    for run in tqdm(range(runs)):
 
-for run in tqdm(range(runs)):
-    rewards_avg = t.zeros(episodes)
-    rewards_weighted = t.zeros(episodes)
+        R_t = t.zeros(episodes)
+        R_t[0] = 1
+        machine = kS.kSlotMachine(k, mean, var, moving_mean)
+        grad_bandit = model.Bandit(k, alpha = alpha)
+        optimal_act = t.zeros(episodes)
+        
+        for epi in range(episodes):
 
-    optimal_avg = t.zeros(episodes)
-    optimal_weighted = t.zeros(episodes)
-
-    agent_avg = model.Bandit(k, epsilon,  0)
-    agent_weighted = model.Bandit(k, epsilon, alpha)
-
-    for epi in range(episodes):
-        optimal = t.argmax(machine.k).item()
-        action_avg = agent_avg.EpsilonGreedy()
-        action_weighted = agent_weighted.EpsilonGreedy()
-
-        reward_avg = machine.Stat_NormDist(action_avg)
-        reward_weighted = machine.Stat_NormDist(action_weighted)
-
-        agent_avg.Update_Average(reward_avg, action_avg)
-        agent_weighted.Update_WeightedAverage(reward_weighted, action_weighted)
-
-        machine.Update_NormDist()
-
-        rewards_avg[epi] = reward_avg
-        rewards_weighted[epi] = reward_weighted 
-
-        if action_avg == optimal:
-            optimal_avg[epi] = 1
-        if action_weighted == optimal:
-            optimal_weighted[epi] = 1
+            optimal = t.argmax(machine.k).item()
+            action = grad_bandit.Gradient_Pick()
+            reward = machine.Stat_NormDist(action)
             
-    cum_reward_avg = t.cumsum(rewards_avg, dim=0) / t.arange(1, episodes+1)
-    cum_optimal_avg = t.cumsum(optimal_avg, dim=0) / t.arange(1, episodes+1)
+            grad_bandit.Update_Gradient(reward, action, t.sum(R_t) / (epi+1))
+            R_t[epi] = reward
 
-    cum_reward_weighted = t.cumsum(rewards_weighted, dim=0) / t.arange(1, episodes+1)
-    cum_optimal_weighted = t.cumsum(optimal_weighted, dim=0) / t.arange(1, episodes+1)
-     
-    runs_cum_reward_avg += cum_reward_avg
-    runs_cum_optimal_avg += cum_optimal_avg
-    runs_cum_reward_weighted += cum_reward_weighted
-    runs_cum_optimal_weighted += cum_optimal_weighted 
-    
+            if action == optimal:
+                optimal_act[epi] = 1
+                
+        runs_optimal_acts[n] += t.cumsum(optimal_act, dim=0) / t.arange(1, episodes+1) 
 
-color = iter(plt.cm.rainbow(np.linspace(0, 1, 4)))
-c = next(color)
-plt.plot([*range(episodes)], runs_cum_reward_avg.numpy() / runs, c=c, label = "Avg")
-c = next(color)
-plt.plot([*range(episodes)], runs_cum_reward_weighted.numpy() / runs, c=c, label = "Weighted")
+
+color = iter(plt.cm.rainbow(np.linspace(0, 1, len(alphas))))
+for i in range(len(alphas)):
+    c = next(color)
+    plt.plot([*range(episodes)], runs_optimal_acts[i].numpy() / runs, c=c, label = f'{alphas[i]}')
 plt.legend(loc = "lower right")
 plt.show()
-
-c = next(color)
-plt.plot([*range(episodes)], runs_cum_optimal_avg.numpy() / runs, c=c, label = "Avg")
-c = next(color)
-plt.plot([*range(episodes)], runs_cum_optimal_weighted.numpy() / runs, c=c, label = "Weighted")
-plt.legend(loc = "lower right")
-plt.show()
-
-
-
 

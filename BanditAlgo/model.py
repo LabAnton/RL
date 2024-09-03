@@ -22,9 +22,13 @@ class Bandit:
             action = t.argmax(self.q).item() 
         return action 
     
-    def UCB(self, t):
-        right_term = c * t.sqrt(t.log(t.tensor(t))/self.rounds)
-        print(right_term.shape)
+    def UCB(self, time):
+        if not self.rounds.all():
+            sub = self.rounds
+            sub[sub == 0] = 1
+            right_term = self.c * t.sqrt(t.log(t.tensor(time))/sub)
+        else:
+            right_term = self.c * t.sqrt(t.log(t.tensor(time))/self.rounds)
         return t.argmax(self.q + right_term).item()    
     
     def Update_Average(self, reward: int, action: int):
