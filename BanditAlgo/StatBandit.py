@@ -9,14 +9,15 @@ from tqdm import tqdm
 k = 10 
 mean = 2 
 var = 2 
-constants = [1] 
-episodes = 2000
-runs = 50 
+constants = [0.5] 
+episodes = 1000 
+runs = 1 
 
 machine = kS.kSlotMachine(k, mean, var)
 print(machine.k)
 optimal = t.argmax(machine.k).item()
 print('Optimal:', optimal)
+
 
 runs_cum_reward = t.zeros(len(constants), episodes)
 runs_cum_optimal = t.zeros(len(constants), episodes)
@@ -30,12 +31,12 @@ for run in tqdm(range(runs)):
     cum_optimal = t.zeros(len(constants), episodes)
 
     for num, c in enumerate(constants):
-        agent = model.Bandit(k, c = c)
+        agent = model.Bandit(k, alpha = c)
         for i in range(episodes):
 
-            action = agent.UCB(i+1)
+            action = agent.Gradient_Pick()
             reward = machine.Stat_NormDist(action)    
-            agent.Update_Average(reward, action) 
+            agent.Update_Gradient(reward, action, R_t = t.sum(rewards[num, :]).item()/(i+1)) 
 
             rewards[num, i] = reward
             #cum_reward[num, i] = t.sum(rewards, dim = 1)[num]/i
@@ -49,7 +50,6 @@ for run in tqdm(range(runs)):
     runs_cum_reward += cum_reward 
     runs_cum_optimal += cum_optimal
 
-print(agent.q)
 color = iter(plt.cm.rainbow(np.linspace(0, 1, 2*len(constants))))
 for index, value in enumerate(constants):
     c = next(color)

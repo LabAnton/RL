@@ -8,13 +8,13 @@ from tqdm import tqdm
 #Parameters
 k = 10
 mean = 2 
-var = 1 
+var = 2 
 moving_mean = 0
 epsilons = [1/256, 1/128, 1/64, 1/32, 1/16, 1/8, 1/4, 1/2]
-constants = [1/16, 1/8, 1/4, 1/2, 1, 2, 4]
-alphas = [1/16, 1/8, 1/4, 1/2, 1, 2, 4]
+constants = [1/16, 1/8, 1/4, 1/2, 1, 2]
+alphas = [1/16, 1/8, 1/4, 1/2, 1, 2]
 episodes = 200000 
-runs = 1 
+runs = 10 
 
 #Epsilon-Greedy Algorithm
 EG_run_avg_rewards = t.zeros(len(epsilons))
@@ -31,12 +31,12 @@ GB_run_avg_rewards = t.zeros(len(alphas))
 GB_cum_rewards = t.zeros(len(alphas), episodes)
 GB_rewards = t.zeros(len(alphas), episodes)
 
-machine = kS.kSlotMachine(k, mean, var, moving_mean)
 
 for run in range(runs):
     print('RUN NUMBER: ', run+1)
 
     for num, alpha in enumerate(alphas):
+        machine = kS.kSlotMachine(k, mean, var, moving_mean)
 
         GB_agent = model.Bandit(k, alpha = alpha) 
 
@@ -44,7 +44,7 @@ for run in range(runs):
 
             GB_action = GB_agent.Gradient_Pick()    
             GB_reward = machine.Stat_NormDist(GB_action)
-            GB_agent.Update_Gradient(GB_reward, GB_action, R_t = (t.sum(GB_rewards[num, :i]/i)).item())
+            GB_agent.Update_Gradient(GB_reward, GB_action, R_t = t.sum(GB_rewards[num, :]).item()/(i+1))
         
             GB_rewards[num, i] = GB_reward
             
@@ -58,6 +58,7 @@ for run in range(runs):
 
 
     for num, epsilon in enumerate(epsilons):
+        machine = kS.kSlotMachine(k, mean, var, moving_mean)
 
         EG_agent = model.Bandit(k, epsilon = epsilon, alpha = 0.1) 
 
@@ -78,11 +79,12 @@ for run in range(runs):
 
     for num, c in enumerate(constants):
 
+        machine = kS.kSlotMachine(k, mean, var, moving_mean)
         UCB_agent = model.Bandit(k, mean, alpha = 0.1, c = c)
        
         for i in tqdm(range(episodes)):
 
-             UCB_action = UCB_agent.UCB(i)    
+             UCB_action = UCB_agent.UCB(i+1)    
              UCB_reward = machine.Stat_NormDist(EG_action)
              UCB_agent.Update_Average(UCB_reward, UCB_action)
            

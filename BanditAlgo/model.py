@@ -15,20 +15,22 @@ class Bandit:
 
     def EpsilonGreedy(self):
         p = t.rand(1).item()
-
         if p < self.epsilon:  
             action = math.floor(t.rand(1).item() * self.k)
         else:
             action = t.argmax(self.q).item() 
+
         return action 
     
     def UCB(self, time):
+        #can still be written more beautifully
         if not self.rounds.all():
             sub = self.rounds
             sub[sub == 0] = 1
             right_term = self.c * t.sqrt(t.log(t.tensor(time))/sub)
         else:
             right_term = self.c * t.sqrt(t.log(t.tensor(time))/self.rounds)
+
         return t.argmax(self.q + right_term).item()    
     
     def Update_Average(self, reward: int, action: int):
@@ -40,24 +42,13 @@ class Bandit:
     
     def Gradient_Pick(self):
         p = t.rand(1).item()
-        # Has to some to one
         pi_t = t.cumsum(t.exp(self.q)/t.sum(t.exp(self.q)), dim = 0)
-        #somehow pick p from intervals in prob  
-        for index, prob in enumerate(pi_t):
-            try:
-                if p < prob.item():
-                    return index
-            except:
-                print(self.q, pi_t)
-                exit()
-        return self.k - 1
+
+        return self.k - t.sum(t.where(p < pi_t, 1, 0)).item() - 1 
 
     def Update_Gradient(self, reward: int, action: int, R_t: float):
         pi_t = t.exp(self.q)/t.sum(t.exp(self.q))
-        #print('Distribution: ', pi_t, 'R_t:', R_t)
 
-        #print('Before: ', self.q)
         self.q = self.q - self.alpha * (reward - R_t) *(pi_t)
         self.q[action] += self.alpha * (reward - R_t) 
-        #print('Updates:' , self.q)
         
