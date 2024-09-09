@@ -1,5 +1,5 @@
 import kSlotMachine as kS
-import model
+import model 
 import matplotlib.pyplot as plt
 import torch as t
 import numpy as np
@@ -10,11 +10,11 @@ k = 10
 mean = 2 
 var = 2 
 moving_mean = 0
-epsilons = [1/256, 1/128, 1/64, 1/32, 1/16, 1/8, 1/4, 1/2]
-constants = [1/16, 1/8, 1/4, 1/2, 1, 2]
-alphas = [1/16, 1/8, 1/4, 1/2, 1, 2]
+epsilons = [1/124, 1/64, 1/32, 1/16, 1/8, 1/4, 1/2]
+constants = [1/124, 1/64, 1/32, 1/16, 1/8, 1/4, 1/2, 1, 2]
+alphas = [1/64, 1/32, 1/16, 1/8, 1/4, 1/2, 1, 2]
 episodes = 200000 
-runs = 10 
+runs = 20
 
 #Epsilon-Greedy Algorithm
 EG_run_avg_rewards = t.zeros(len(epsilons))
@@ -29,14 +29,14 @@ UCB_rewards = t.zeros(len(constants), episodes)
 #Gradient Bandit
 GB_run_avg_rewards = t.zeros(len(alphas))
 GB_cum_rewards = t.zeros(len(alphas), episodes)
-GB_rewards = t.zeros(len(alphas), episodes)
 
 
 for run in range(runs):
     print('RUN NUMBER: ', run+1)
+    machine = kS.kSlotMachine(k, mean, var, moving_mean)
 
+    GB_rewards = t.zeros(len(alphas), episodes)
     for num, alpha in enumerate(alphas):
-        machine = kS.kSlotMachine(k, mean, var, moving_mean)
 
         GB_agent = model.Bandit(k, alpha = alpha) 
 
@@ -53,20 +53,21 @@ for run in range(runs):
     GB_cum_rewards = t.cumsum(GB_rewards, dim=1) / t.arange(1, episodes+1).repeat(len(alphas), 1)
     # Take the average 100000 data points over all epsilon and reshape it into a [len(epsilon)] shape
     GB_avg_reward = t.mean(GB_cum_rewards[:, -100000:], dim =1).reshape(len(alphas))
+    print(GB_avg_reward)
     # Add to the average run reward, every position is one epsilon 
     GB_run_avg_rewards += GB_avg_reward    
+    print(GB_run_avg_rewards)
 
 
     for num, epsilon in enumerate(epsilons):
-        machine = kS.kSlotMachine(k, mean, var, moving_mean)
 
-        EG_agent = model.Bandit(k, epsilon = epsilon, alpha = 0.1) 
+        EG_agent = model.Bandit(k, epsilon = epsilon) 
 
         for i in tqdm(range(episodes)):
 
             EG_action = EG_agent.EpsilonGreedy()    
             EG_reward = machine.Stat_NormDist(EG_action)
-            EG_agent.Update_WeightedAverage(EG_reward, EG_action)
+            EG_agent.Update_Average(EG_reward, EG_action)
             
             EG_rewards[num, i] = EG_reward
         
@@ -79,13 +80,12 @@ for run in range(runs):
 
     for num, c in enumerate(constants):
 
-        machine = kS.kSlotMachine(k, mean, var, moving_mean)
-        UCB_agent = model.Bandit(k, mean, alpha = 0.1, c = c)
+        UCB_agent = model.Bandit(k, c = c)
        
         for i in tqdm(range(episodes)):
 
              UCB_action = UCB_agent.UCB(i+1)    
-             UCB_reward = machine.Stat_NormDist(EG_action)
+             UCB_reward = machine.Stat_NormDist(UCB_action)
              UCB_agent.Update_Average(UCB_reward, UCB_action)
            
              UCB_rewards[num, i] = UCB_reward

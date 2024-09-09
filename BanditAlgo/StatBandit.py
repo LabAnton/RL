@@ -10,8 +10,8 @@ k = 10
 mean = 2 
 var = 2 
 constants = [0.5] 
-episodes = 1000 
-runs = 1 
+episodes = 200000 
+runs = 20 
 
 machine = kS.kSlotMachine(k, mean, var)
 print(machine.k)
@@ -36,7 +36,7 @@ for run in tqdm(range(runs)):
 
             action = agent.Gradient_Pick()
             reward = machine.Stat_NormDist(action)    
-            agent.Update_Gradient(reward, action, R_t = t.sum(rewards[num, :]).item()/(i+1)) 
+            agent.Update_Gradient(reward, action, R_t = t.sum(rewards[num,:]).item()/(i+1)) 
 
             rewards[num, i] = reward
             #cum_reward[num, i] = t.sum(rewards, dim = 1)[num]/i
@@ -50,6 +50,8 @@ for run in tqdm(range(runs)):
     runs_cum_reward += cum_reward 
     runs_cum_optimal += cum_optimal
 
+print(agent.q)
+print(t.exp(agent.q)/t.sum(t.exp(agent.q)))
 color = iter(plt.cm.rainbow(np.linspace(0, 1, 2*len(constants))))
 for index, value in enumerate(constants):
     c = next(color)
