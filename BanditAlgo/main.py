@@ -7,14 +7,14 @@ from tqdm import tqdm
 
 #Parameters
 k = 10
-mean = 2 
+mean = 3 
 var = 2 
 moving_mean = 0
 epsilons = [1/124, 1/64, 1/32, 1/16, 1/8, 1/4, 1/2]
-constants = [1/124, 1/64, 1/32, 1/16, 1/8, 1/4, 1/2, 1, 2]
-alphas = [1/64, 1/32, 1/16, 1/8, 1/4, 1/2, 1, 2]
+constants = [1/124, 1/64, 1/32, 1/16, 1/8, 1/4, 1/2, 1, 2, 4]
+alphas = [1/64, 1/32, 1/16, 1/8, 1/4, 1/2, 1, 2, 4]
 episodes = 200000 
-runs = 20
+runs = 1 
 
 #Epsilon-Greedy Algorithm
 EG_run_avg_rewards = t.zeros(len(epsilons))
