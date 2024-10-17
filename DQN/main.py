@@ -6,6 +6,7 @@ import torch.nn as nn
 import numpy as np
 import matplotlib.pyplot as plt
 import model as model 
+import memory_buffer as mb
 from tqdm import tqdm
 
 t.cuda.empty_cache()
@@ -15,14 +16,15 @@ device = t.device('cuda' if t.cuda.is_available() else 'cpu')
 reward_per_game = []
 replay_memory = []
 length_game = []
-memory_max = 10000 
-games = 20  
+max_memory = 40000 
+games = 100  
 epsilon = 1 
 minibatch_size = 128 
 gamma = 0.98
 skip_frame = 4
-C = 10000
-start_learning = 50000
+history_length = 8 
+C = max_memory/2 
+start_learning = max_memory/2 
 
 ##########Things still to do###########
 # 1. Write class Replay Memory -> Since we need to be memory efficient we have to save as list and question is whether I should make image smaller
@@ -30,30 +32,28 @@ start_learning = 50000
 # 3. Get stuff on GPU properly
 # 4. Introduce gradient clipping to stabilize training for other games -> Huber loss ?
 # 5. Look into unsqueeze my implementation seems too complicated.
+# 6. Look into ALE documentation. Seems my implementation is old
 
 env = gym.make("Pong-v4", render_mode = None, frameskip = skip_frame)
 
-dqn         = model.DQN(env).to(device)
-target_dqn  = model.DQN(env).to(device)
+dqn         = model.DQN(env, history_length).to(device)
+target_dqn  = model.DQN(env, history_length).to(device)
 #Initialize such that target_dqn == dqn
 target_dqn.load_state_dict(dqn.state_dict())
+memory = mb.Memory_buffer(max_memory, history_length, minibatch_size)
 
 loss_fn     = nn.MSELoss()
 optimizer   = t.optim.SGD(dqn.parameters(), lr = 0.00001, momentum = 0.9)
 
 def train_replay(replay_memory, minibatch_size):
 
-    random_choice = np.random.choice(len(replay_memory), minibatch_size)
-    states          = t.cat([replay_memory[i][0] for i in random_choice], dim = 0)
-    action_rewards  = t.stack([replay_memory[i][1] for i in random_choice], dim = 0)
-    next_state      = t.cat([replay_memory[i][2] for i in random_choice], dim = 0)
-    terminated      = t.stack([replay_memory[i][3] for i in random_choice], dim = 0)
+    states, next_states, action_rewards, terminated = memory.sample()
 
-    main_q_value    = t.max(dqn(states), dim = 1).values
-    target_q_value  = t.max(target_dqn(next_state), dim = 1).values
+    main_q_value    = t.max(dqn(states.to(device)), dim = 1).values
+    target_q_value  = t.max(target_dqn(next_states.to(device)), dim = 1).values
    
     optimizer.zero_grad()
-    target = action_rewards + gamma * target_q_value * terminated
+    target = action_rewards.to(device) + gamma * target_q_value * terminated.to(device)
     loss = loss_fn(main_q_value, target)
     loss.backward()
     optimizer.step()
@@ -65,28 +65,35 @@ for game in tqdm(range(games)):
     terminated = False
     state = env.reset()[0]
 
-    state = t.permute(t.unsqueeze(t.tensor(state.astype('float64')), 0), (0, 3, 1, 2)).to(device)
+    state = t.permute(t.unsqueeze(t.tensor(state.astype('float64')), 0), (0, 3, 1, 2))
     #Transforming image to greyscale
     state = t.unsqueeze(t.sum(state/3, 1), 0)
+
     while not terminated:
         p = t.rand(1).item() 
         if p < epsilon: 
             action = env.action_space.sample()
         else:
-            action = t.argmax(dqn(state).to(device)).item()
+            #bug here because state has no history, yet.
+            last_state = memory.create_next_state_hist(-1).to(device)
+            try:
+                action = t.argmax(dqn(last_state)).item()
+            except:
+                print('Action-space:', dqn(last_state))
+                print('Action-space:', t.argmax(dqn(last_state)))
+                print('OG:',last_state.is_cuda)
+                print(last_state.to(device).is_cuda)
+                print(type(last_state))
 
         next_state, reward, terminated, truncated, info = env.step(action)
         rewards.append(reward)
 
         next_state = t.unsqueeze(t.sum(t.permute(t.unsqueeze(t.tensor(next_state.astype('float64')), 0), (0, 3, 1, 2))/3, 1), 0)
-    #    print('Next_State:', next_state.shape)
 
         reward = t.tensor(reward)
         termi = t.tensor(not terminated)
 
-        
-        #Here I put states into class Replay Memory
-
+        memory.add(state, next_state, reward, termi)
         
         state = next_state
 

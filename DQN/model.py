@@ -2,10 +2,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class DQN(nn.Module):
-    def __init__(self, env):
+    def __init__(self, env, history_len):
         super().__init__()
         
-        self.Conv1 = nn.Conv2d(4, 16, 8, stride = 4) 
+        self.Conv1 = nn.Conv2d(history_len, 16, 8, stride = 4) 
         self.Pool1 = nn.MaxPool2d(2, stride = 2)
         self.Conv2 = nn.Conv2d(16, 32, 4, stride = 2)
         self.Conv3 = nn.Conv2d(32, 64, 2, stride = 1)
