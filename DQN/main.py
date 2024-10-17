@@ -9,43 +9,37 @@ import model as model
 from tqdm import tqdm
 
 t.cuda.empty_cache()
-t.manual_seed(33)
+t.manual_seed(3)
 device = t.device('cuda' if t.cuda.is_available() else 'cpu')
 
 reward_per_game = []
 replay_memory = []
 length_game = []
-memory_max = 20000 
-games = 400  
+memory_max = 10000 
+games = 20  
 epsilon = 1 
-minibatch_size = 512 
-gamma = 0.9
+minibatch_size = 128 
+gamma = 0.98
 skip_frame = 4
-C = 200
+C = 10000
+start_learning = 50000
 
 ##########Things still to do###########
-# 1. Change RGB to Greyscale or increase conv such that last layer is smaller -> Done and added Maxpool2d instead of cropping the image.
-# 2. Rewrite train_replay, such that it is better to read and more efficient -> Done 
-# 3. Set-up Fixed-Q target -> Done
-# 4. Try a training run -> Does not learn after 50 games with epsilon 0.1 and C = 20
-# 5. Hyperparameter study
-# 6. Get everything on GPU -> Done
-# 7. Have not thought about terminal state yet. -> Done
-# 8. Introduce gradient clipping to stabilize training -> Not needed since rewards are 1, 0 and -1
-# 9. Look at Huber loss for other games
-# 10. How are histories implemented ? -> Done
-# 11. Look into unsqueeze my implementation seems too complicated.
-# 12. Implementation of replay memory is not clean. Terminated states not accounted for and the first ones
+# 1. Write class Replay Memory -> Since we need to be memory efficient we have to save as list and question is whether I should make image smaller
+# 2. Try a training run -> Does not work why ???
+# 3. Get stuff on GPU properly
+# 4. Introduce gradient clipping to stabilize training for other games -> Huber loss ?
+# 5. Look into unsqueeze my implementation seems too complicated.
 
-env = gym.make("Pong-v4", render_mode = None)
+env = gym.make("Pong-v4", render_mode = None, frameskip = skip_frame)
 
-#Network is overparameterized because I get RGB, I have to check later what to do
 dqn         = model.DQN(env).to(device)
 target_dqn  = model.DQN(env).to(device)
 #Initialize such that target_dqn == dqn
 target_dqn.load_state_dict(dqn.state_dict())
+
 loss_fn     = nn.MSELoss()
-optimizer   = t.optim.SGD(dqn.parameters(), lr = 0.0001, momentum = 0.9)
+optimizer   = t.optim.SGD(dqn.parameters(), lr = 0.00001, momentum = 0.9)
 
 def train_replay(replay_memory, minibatch_size):
 
@@ -64,15 +58,8 @@ def train_replay(replay_memory, minibatch_size):
     loss.backward()
     optimizer.step()
     
-def create_history(replay_memory, state):
-    if len(replay_memory) >= 8: 
-        history_state = t.cat((replay_memory[-1][0][:, -3:], state), dim = 1)
-    else:
-        #Lets cheat for the beginning and just repeat the same state over all 4 channels. Will not be relevant after the first 4 states. Although training in the beginning will be hard. hmmmm
-        history_state = state.repeat(1, 4, 1, 1) 
-    
-    return history_state
-
+time = 0
+n = 0 
 for game in tqdm(range(games)):
     rewards = []
     terminated = False
@@ -81,38 +68,33 @@ for game in tqdm(range(games)):
     state = t.permute(t.unsqueeze(t.tensor(state.astype('float64')), 0), (0, 3, 1, 2)).to(device)
     #Transforming image to greyscale
     state = t.unsqueeze(t.sum(state/3, 1), 0)
-    #print('PreState:', state.shape)
-    state = create_history(replay_memory, state)
-    #print('PreStateHist:', state.shape)
-    n = 4 
     while not terminated:
-        if n % skip_frame == 0:
-            p = t.rand(1).item()
-            if p < epsilon: 
-                action = env.action_space.sample()
-            else:
-                action = t.argmax(dqn(state).to(device)).item()
+        p = t.rand(1).item() 
+        if p < epsilon: 
+            action = env.action_space.sample()
+        else:
+            action = t.argmax(dqn(state).to(device)).item()
 
         next_state, reward, terminated, truncated, info = env.step(action)
         rewards.append(reward)
 
-        next_state = t.unsqueeze(t.sum(t.permute(t.unsqueeze(t.tensor(next_state.astype('float64')), 0), (0, 3, 1, 2)).to(device)/3, 1), 0)
+        next_state = t.unsqueeze(t.sum(t.permute(t.unsqueeze(t.tensor(next_state.astype('float64')), 0), (0, 3, 1, 2))/3, 1), 0)
     #    print('Next_State:', next_state.shape)
 
-        next_state = create_history(replay_memory, next_state)
-    #    print('Next_State Hist:' , next_state.shape)
-        reward = t.tensor(reward).to(device)
-        termi = t.tensor(not terminated).to(device)
+        reward = t.tensor(reward)
+        termi = t.tensor(not terminated)
 
-        if len(replay_memory) > memory_max:
-            replay_memory.pop(0)
+        
+        #Here I put states into class Replay Memory
 
-        replay_memory.append([state, reward, next_state, termi])
         
         state = next_state
 
         #Train DQN
-        train_replay(replay_memory, minibatch_size)
+        if time > start_learning:
+            train_replay(replay_memory, minibatch_size)
+        else:
+            time += 1
 
         #Fixed-update    
         if n % C == 0:
@@ -127,11 +109,9 @@ for game in tqdm(range(games)):
 #    print(sum(rewards))
     reward_per_game.append(sum(rewards))
     length_game.append(len(rewards))
-    # Since Pong only has rarely a negative reward, lets delete all 0 rewards state after the run such that it trains more on the negative expiereneces 
-    replay_memory = list(filter(lambda x: x == t.tensor(0), replay_memory))
 
     if epsilon > 0.01:
-        epsilon -= 1/1000
+        epsilon -= 1/10000
      
 fig_1, ax_1 = plt.subplots()
 ax_1.plot(np.arange(len(reward_per_game)), reward_per_game, 'x')
