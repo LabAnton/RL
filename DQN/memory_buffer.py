@@ -29,10 +29,15 @@ class Memory_buffer:
         assert t.is_tensor(reward)
         assert t.is_tensor(terminated)  
 
-        self.state.append(state)
-        self.next_state.append(next_state)
-        self.reward.append(reward)
-        self.terminated.append(terminated)
+        #In case I miscalculated memory usage
+        try:
+            self.state.append(state)
+            self.next_state.append(next_state)
+            self.reward.append(reward)
+            self.terminated.append(terminated)
+        except:
+            print(len(state))
+            self.max_memory = len(state)-10
         
     def sample(self):
         #we are looping a lot here with the histories. Can I save it more efficiently ?

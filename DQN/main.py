@@ -7,6 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import model as model 
 import memory_buffer as mb
+import cv2
 from tqdm import tqdm
 
 t.cuda.empty_cache()
@@ -16,20 +17,20 @@ device = t.device('cuda' if t.cuda.is_available() else 'cpu')
 reward_per_game = []
 replay_memory = []
 length_game = []
-max_memory = 40000 
-games = 100  
+max_memory = 500000 
+games = 1000  
 epsilon = 1 
 minibatch_size = 128 
-gamma = 0.98
+gamma = 0.99
 skip_frame = 4
-history_length = 8 
-C = max_memory/2 
-start_learning = max_memory/2 
+history_length = 4 
+C = 10000
+start_learning = 50000 
 
 ##########Things still to do###########
-# 1. Write class Replay Memory -> Since we need to be memory efficient we have to save as list and question is whether I should make image smaller
+# 1. Write class Replay Memory -> Done; Resized images aswell 
 # 2. Try a training run -> Does not work why ???
-# 3. Get stuff on GPU properly
+# 3. Get stuff on GPU properly -> Done
 # 4. Introduce gradient clipping to stabilize training for other games -> Huber loss ?
 # 5. Look into unsqueeze my implementation seems too complicated.
 # 6. Look into ALE documentation. Seems my implementation is old
@@ -64,10 +65,11 @@ for game in tqdm(range(games)):
     rewards = []
     terminated = False
     state = env.reset()[0]
+    state = cv2.resize(state, (84, 84), interpolation = cv2.INTER_LINEAR)
 
-    state = t.permute(t.unsqueeze(t.tensor(state.astype('float64')), 0), (0, 3, 1, 2))
+    state = t.permute(t.unsqueeze(t.tensor(state.astype(dtype = np.float64)), 0), (0, 3, 1, 2))
     #Transforming image to greyscale
-    state = t.unsqueeze(t.sum(state/3, 1), 0)
+    state = t.unsqueeze(t.sum(state/3, 1), 0).to(t.float32)
 
     while not terminated:
         p = t.rand(1).item() 
@@ -86,14 +88,15 @@ for game in tqdm(range(games)):
                 print(type(last_state))
 
         next_state, reward, terminated, truncated, info = env.step(action)
-        rewards.append(reward)
-
+        next_state = cv2.resize(next_state, (84, 84), interpolation = cv2.INTER_LINEAR)
         next_state = t.unsqueeze(t.sum(t.permute(t.unsqueeze(t.tensor(next_state.astype('float64')), 0), (0, 3, 1, 2))/3, 1), 0)
 
-        reward = t.tensor(reward)
-        termi = t.tensor(not terminated)
+        rewards.append(reward)
 
-        memory.add(state, next_state, reward, termi)
+        reward = t.tensor(reward).to(t.float32)
+        termi = t.tensor(not terminated).to(t.float32)
+
+        memory.add(state, next_state.to(t.float32), reward, termi)
         
         state = next_state
 
