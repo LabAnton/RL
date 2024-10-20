@@ -22,14 +22,15 @@ games = 1000
 epsilon = 1 
 minibatch_size = 128 
 gamma = 0.99
-skip_frame = 4
-history_length = 4 
+skip_frame = 4 
+history_length = 8 
 C = 10000
-start_learning = 50000 
+start_learning = max_memory/10
 
 ##########Things still to do###########
 # 1. Write class Replay Memory -> Done; Resized images aswell 
-# 2. Try a training run -> Does not work why ???
+# 2. Try a training run ->  Trained for 1000 games with historylength = 8, skipframes = 4 and gamma = 0.99, the network seems to forget what it learns since it sometimes peaks at -16 total 
+#                           reward per game and then goes to -21 again
 # 3. Get stuff on GPU properly -> Done
 # 4. Introduce gradient clipping to stabilize training for other games -> Huber loss ?
 # 5. Look into unsqueeze my implementation seems too complicated.
@@ -37,8 +38,8 @@ start_learning = 50000
 
 env = gym.make("Pong-v4", render_mode = None, frameskip = skip_frame)
 
-dqn         = model.DQN(env, history_length).to(device)
-target_dqn  = model.DQN(env, history_length).to(device)
+dqn         = model.DQN(env, history_length).to(t.bfloat16).to(device)
+target_dqn  = model.DQN(env, history_length).to(t.bfloat16).to(device)
 #Initialize such that target_dqn == dqn
 target_dqn.load_state_dict(dqn.state_dict())
 memory = mb.Memory_buffer(max_memory, history_length, minibatch_size)
@@ -60,16 +61,15 @@ def train_replay(replay_memory, minibatch_size):
     optimizer.step()
     
 time = 0
-n = 0 
 for game in tqdm(range(games)):
     rewards = []
     terminated = False
     state = env.reset()[0]
+    #Resize
     state = cv2.resize(state, (84, 84), interpolation = cv2.INTER_LINEAR)
-
-    state = t.permute(t.unsqueeze(t.tensor(state.astype(dtype = np.float64)), 0), (0, 3, 1, 2))
-    #Transforming image to greyscale
-    state = t.unsqueeze(t.sum(state/3, 1), 0).to(t.float32)
+    #Transfrom to greyscale
+    state = np.dot(state, [0.299, 0.587, 0.114])
+    state = t.tensor(state).view(1, 1, 84, 84).to(t.bfloat16)
 
     while not terminated:
         p = t.rand(1).item() 
@@ -77,7 +77,7 @@ for game in tqdm(range(games)):
             action = env.action_space.sample()
         else:
             #bug here because state has no history, yet.
-            last_state = memory.create_next_state_hist(-1).to(device)
+            last_state = (memory.create_next_state_hist(-1)).to(device)
             try:
                 action = t.argmax(dqn(last_state)).item()
             except:
@@ -89,38 +89,35 @@ for game in tqdm(range(games)):
 
         next_state, reward, terminated, truncated, info = env.step(action)
         next_state = cv2.resize(next_state, (84, 84), interpolation = cv2.INTER_LINEAR)
-        next_state = t.unsqueeze(t.sum(t.permute(t.unsqueeze(t.tensor(next_state.astype('float64')), 0), (0, 3, 1, 2))/3, 1), 0)
+        next_state = np.dot(next_state, [0.299, 0.587, 0.114])
+        next_state = t.tensor(next_state).view(1, 1, 84, 84).to(t.bfloat16)
 
         rewards.append(reward)
 
-        reward = t.tensor(reward).to(t.float32)
-        termi = t.tensor(not terminated).to(t.float32)
+        reward = t.tensor(reward).to(t.bfloat16)
+        termi = t.tensor(not terminated).to(t.bfloat16)
 
-        memory.add(state, next_state.to(t.float32), reward, termi)
+        memory.add(state, next_state, reward, termi)
         
         state = next_state
 
         #Train DQN
         if time > start_learning:
             train_replay(replay_memory, minibatch_size)
-        else:
-            time += 1
 
         #Fixed-update    
-        if n % C == 0:
+        if time % C == 0:
             target_dqn_state_dict   = target_dqn.state_dict() 
             dqn_state_dict          = dqn.state_dict()
             for key in dqn_state_dict:
                 target_dqn_state_dict[key] = dqn_state_dict[key]
                 target_dqn.load_state_dict(target_dqn_state_dict)    
-        n += 1
+        time += 1
 
-
-#    print(sum(rewards))
     reward_per_game.append(sum(rewards))
     length_game.append(len(rewards))
 
-    if epsilon > 0.01:
+    if epsilon > 0.01 :
         epsilon -= 1/10000
      
 fig_1, ax_1 = plt.subplots()
