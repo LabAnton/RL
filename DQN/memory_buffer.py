@@ -12,22 +12,25 @@ class Memory_buffer:
         self.next_state = []
         self.reward = []
         self.terminated = []
+        self.action_taken = []
         self.max_memory = max_memory 
         self.histolen = history_length
         self.minibatch_size = minibatch_size
     
-    def add(self, state, next_state, reward, terminated):
+    def add(self, state, action, next_state, reward, terminated):
         #saves states, reward, terminated in list
         if len(state) > self.max_memory:
             self.state.pop(0)
             self.next_state.pop(0)
             self.reward.pop(0)
             self.terminated.pop(0)
+            self.action_taken.pop(0)
 
         assert len(state.shape) == 4
         assert len(next_state.shape) == 4
         assert t.is_tensor(reward)
         assert t.is_tensor(terminated)  
+        assert t.is_tensor(action)
 
         #In case I miscalculated memory usage
         try:
@@ -35,6 +38,7 @@ class Memory_buffer:
             self.next_state.append(next_state)
             self.reward.append(reward)
             self.terminated.append(terminated)
+            self.action_taken.append(action)
         except:
             print(len(state))
             self.max_memory = len(state)-10
@@ -44,10 +48,11 @@ class Memory_buffer:
         random_choice   = np.random.choice(np.arange(self.histolen, len(self.state)), self.minibatch_size)
         states          = t.cat([self.create_state_hist(i) for i in random_choice], dim = 0)
         next_states     = t.cat([self.create_next_state_hist(i) for i in random_choice], dim = 0) 
+        actions_taken   = t.stack([self.action_taken[i] for i in random_choice])
         rewards         = t.stack([self.reward[i] for i in random_choice])
         terminated      = t.stack([self.terminated[i] for i in random_choice]) 
         
-        return states, next_states, rewards, terminated
+        return states, actions_taken, next_states, rewards, terminated
         
     def create_state_hist(self, idx):
         return t.cat([self.state[j] for j in range(idx-self.histolen, idx)], dim = 1)
