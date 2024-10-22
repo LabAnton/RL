@@ -15,16 +15,14 @@ t.manual_seed(2)
 device = t.device('cuda' if t.cuda.is_available() else 'cpu')
 
 reward_per_game = []
-replay_memory = []
-length_game = []
 max_memory = 700000 
-games = 200  
+games = 2000  
 epsilon = 1 
-minibatch_size = 128 
+minibatch_size = 256 
 gamma = 0.99
 skip_frame = 4 
-history_length = 8 
-C = 100 
+history_length = 4 
+C = 500 
 start_learning = 50000 
 
 ##########Things still to do###########
@@ -46,7 +44,7 @@ memory = mb.Memory_buffer(max_memory, history_length, minibatch_size)
 loss_fn     = nn.SmoothL1Loss()
 optimizer   = t.optim.SGD(dqn.parameters(), lr = 0.00025, momentum = 0.95)
 
-def train_replay(replay_memory, minibatch_size):
+def train_replay(memory, minibatch_size):
 
     states, actions_taken, next_states, action_rewards, terminated = memory.sample()
 
@@ -104,7 +102,7 @@ for game in tqdm(range(games)):
 
         #Train DQN
         if time > start_learning:
-            train_replay(replay_memory, minibatch_size)
+            train_replay(memory, minibatch_size)
 
         #Fixed-update    
         if time % C == 0:
@@ -115,16 +113,13 @@ for game in tqdm(range(games)):
                 target_dqn.load_state_dict(target_dqn_state_dict)    
         time += 1
 
-    #print('States in Memory:', time)
+    print('Memory Size:', memory.size())
     reward_per_game.append(sum(rewards))
-    length_game.append(len(rewards))
 
-    if epsilon > 0.01 :
+    if epsilon > 0.01 and time > start_learning:
         epsilon -= 1/10000
      
+torch.save(dqn.state_dict(), 'dqn_weights_2kgames_1.pth')
 fig_1, ax_1 = plt.subplots()
 ax_1.plot(np.arange(len(reward_per_game)), reward_per_game, 'x')
-plt.show()
-fig_2, ax_2 = plt.subplots()
-ax_2.plot(np.arange(len(length_game)), length_game, 'x')
 plt.show()

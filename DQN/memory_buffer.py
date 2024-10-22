@@ -19,7 +19,7 @@ class Memory_buffer:
     
     def add(self, state, action, next_state, reward, terminated):
         #saves states, reward, terminated in list
-        if len(state) > self.max_memory:
+        if len(self.state) > self.max_memory:
             self.state.pop(0)
             self.next_state.pop(0)
             self.reward.pop(0)
@@ -65,3 +65,6 @@ class Memory_buffer:
     
     def length(self):
        return len(self.state) 
+        
+    def size(self):
+        return len(self.state)
