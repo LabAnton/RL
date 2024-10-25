@@ -34,7 +34,7 @@ for neg in range(0, 21):
     i += 1
 
 def pos_to_value(state):
-    return state[0] * 20 + state[1]
+    return state[0] * 21 + state[1]
 
 ############ Thoughts ################
 # Prob. of cars at next space is poss_func
@@ -54,14 +54,15 @@ def pos_to_value(state):
 # What happens in loc1 and 2 is independent of each other. Thus we can just sum the cumulative reward
 
 # s' = s + diff -> have to take into account policy 
-# Policy Evaluation
+# Policy Evaluation -> Functional but ugly, can I rewrite it more beautifully ?
 def policy_eval(state_value, policy):
     theta = 0.005
-    delta = 0
-    while delta < theta:
-        delta = 0
+    delta = 10 
+    while delta > theta:
+        time = 0
         for loc1 in range(21):
             for loc2 in range(21):
+                time += 1
                 curr_state  = t.tensor([loc1, loc2]) 
                 value_curr_state = state_value[pos_to_value(curr_state)]
                 policy_add  = policy[pos_to_value(curr_state)].item()
@@ -71,7 +72,7 @@ def policy_eval(state_value, policy):
                 # negative values loc 2 to loc 1
                 # 21 => diff = 0; range of diff is diff - s + policy_change to 20 - s + policy:change
                 new_curr = 0
-                for diff_loc1 in range(int(-loc1 - policy_add),  int((20 - loc1) - policy_add)):
+                for diff_loc1 in range(int(-loc1 - policy_add),  int((21 - loc1) - policy_add)):
                     for diff_loc2 in range(int(-loc2 + policy_add),  int((21 - loc2) + policy_add)):
                         #sum of all possibilities for the specific future state f_loc1 and f_loc2 
                         #times the reward of that possibitliy
@@ -80,7 +81,6 @@ def policy_eval(state_value, policy):
                         new_curr += t.sum(prob_of_nexts_r * (next_reward + gamma * state_value[pos_to_value(t.tensor([loc1 + diff_loc1, loc2 + diff_loc2]))]))
                 state_value[pos_to_value(curr_state)] = new_curr
                 delta =  abs(value_curr_state.item() - new_curr.item()) 
-                print(value_curr_state, new_curr)
                         
 policy_eval(state_value, policy)
 print(state_value)
