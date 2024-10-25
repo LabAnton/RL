@@ -17,8 +17,8 @@ gamma       = 0.9
 def poss_func(n, l):
     return (l**n) * math.exp(-l) / math.factorial(n)
 
-# This tensor gives the probability of different return events, where rows signify from 0 to 40,
-# the amount of cars returning from -20 to 20, col 20 is diff = 0
+# This tensor gives the probability of different return events, where rows signify from 0 to 41,
+# the amount of cars returning from -20 to 20, col 21 is diff = 0
 # sum over columns gives the total probability of this event
 prob_l1 = t.zeros([21, 41])
 prob_l2 = t.zeros([21, 41])
@@ -33,7 +33,7 @@ for neg in range(0, 21):
          
     i += 1
 
-def pos_to_value(state):
+def cars_to_pos(state):
     return state[0] * 20 + state[1]
 
 ############ Thoughts ################
@@ -63,8 +63,7 @@ def policy_eval(state_value, policy):
         for loc1 in range(21):
             for loc2 in range(21):
                 curr_state  = t.tensor([loc1, loc2]) 
-                value_curr_state = state_value[pos_to_value(curr_state)]
-                policy_add  = policy[pos_to_value(curr_state)].item()
+                policy_add  = policy[cars_to_pos(curr_state)].item()
                 # Loop through all possible future states; col 21 is basically diff = 0 in   
                 # prob and reward tensors
                 # add policy movements. Positive values indicate cars moving from loc 1 to loc 2
@@ -75,14 +74,15 @@ def policy_eval(state_value, policy):
                     for diff_loc2 in range(int(-loc2 + policy_add),  int((21 - loc2) + policy_add)):
                         #sum of all possibilities for the specific future state f_loc1 and f_loc2 
                         #times the reward of that possibitliy
-                        prob_of_nexts_r = prob_l1[:, 20 + diff_loc1] * prob_l2[:, 20 + diff_loc2] 
-                        next_reward     = r_sell[:, 20+ diff_loc1] + r_sell[:, 20+ diff_loc2]
-                        new_curr += t.sum(prob_of_nexts_r * (next_reward + gamma * state_value[pos_to_value(t.tensor([loc1 + diff_loc1, loc2 + diff_loc2]))]))
-                state_value[pos_to_value(curr_state)] = new_curr
-                delta =  abs(value_curr_state.item() - new_curr.item()) 
-                print(value_curr_state, new_curr)
+                        print(diff_loc1, diff_loc2)
+                        prob_of_nexts_r = prob_l1[:, 21 + diff_loc1] * prob_l2[:, 21 + diff_loc2] 
+                        next_reward     = r_sell[:, 21+ diff_loc1] + r_sell[:, 21+ diff_loc2]
+                        new_curr += prob_of_nexts_r * (next_reward + gamma * state_value[cars_to_pos(t.tensor([loc1 + diff_loc1, loc2 + diff_loc2]))])
+                state_value[cars_to_pos(curr_state)] = new_curr
+                delta =  math.abs(new_curr-curr_state) 
+                print(delta)
                         
 policy_eval(state_value, policy)
-print(state_value)
+
                 
                 
