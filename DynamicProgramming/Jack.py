@@ -1,6 +1,7 @@
 import torch as t
 import numpy as np
 import math 
+import matplotlib.pyplot as plt
 
 # State space is the two location with number of cars in it. Capped at 20
 # Reward of 10 for selling a car; reward of -2 for moving a car -> capped at 5 per night
@@ -36,6 +37,8 @@ for neg in range(0, 21):
 def pos_to_value(state):
     return state[0] * 21 + state[1]
 
+def value_to_pos(state):
+    return t.reshape(state, (21, 21))
 ############ Thoughts ################
 # Prob. of cars at next space is poss_func
 # n = s' will loop over all possible future states. However n is equal to 
@@ -66,23 +69,59 @@ def policy_eval(state_value, policy):
                 curr_state  = t.tensor([loc1, loc2]) 
                 value_curr_state = state_value[pos_to_value(curr_state)]
                 policy_add  = policy[pos_to_value(curr_state)].item()
-                # Loop through all possible future states; col 21 is basically diff = 0 in   
+                # Loop through all possible future states; col 20 is basically diff = 0 in   
                 # prob and reward tensors
                 # add policy movements. Positive values indicate cars moving from loc 1 to loc 2
                 # negative values loc 2 to loc 1
-                # 21 => diff = 0; range of diff is diff - s + policy_change to 20 - s + policy:change
+                # 20 => diff = 0; range of diff is diff - s + policy_change to 20 - s + policy:change
                 new_curr = 0
-                for diff_loc1 in range(int(-loc1 - policy_add),  int((21 - loc1) - policy_add)):
-                    for diff_loc2 in range(int(-loc2 + policy_add),  int((21 - loc2) + policy_add)):
+                # Basically goes from future state 0 to 20. -> assume that he moves cars before cars are returned 
+                # Do not take into account if more cars are returned or asked for than needed
+                for diff_loc1 in range(-loc1 - policy_add,  21 - loc1 - policy_add):
+                    for diff_loc2 in range(-loc2 + policy_add,  21 - loc2 + policy_add):
                         #sum of all possibilities for the specific future state f_loc1 and f_loc2 
                         #times the reward of that possibitliy
                         prob_of_nexts_r = prob_l1[:, 20 + diff_loc1] * prob_l2[:, 20 + diff_loc2] 
-                        next_reward     = r_sell[:, 20+ diff_loc1] + r_sell[:, 20+ diff_loc2]
+                        next_reward     = r_sell[:, 20 + diff_loc1] + r_sell[:, 20+ diff_loc2] - policy_add * 2
                         new_curr += t.sum(prob_of_nexts_r * (next_reward + gamma * state_value[pos_to_value(t.tensor([loc1 + diff_loc1, loc2 + diff_loc2]))]))
                 state_value[pos_to_value(curr_state)] = new_curr
                 delta =  abs(value_curr_state.item() - new_curr.item()) 
                         
+def policy_improv(state_value, policy):
+    stable = True
+    while stable:
+        for loc1 in range(21):
+            for loc2 in range(21):
+                curr_state = t.tensor([loc1, loc2])
+                max_state_value = state_value[pos_to_value(curr_state)]
+                old_policy = policy[pos_to_value(curr_state)].item()
+                # need to limit policy decisions which are sensical
+                for new_policy in range(max(-5, -loc2), min(6, loc1)):
+                    new_curr = 0
+                    for diff_loc1 in range(int(-loc1 - new_policy), max):
+                        for diff_loc2 in range(int(-loc2 + new_policy), int(21 - loc2 + new_policy)):
+                            try:
+                                prob_of_nexts_r = prob_l1[:, 20 + diff_loc1] * prob_l2[:, 20 + diff_loc2]
+                            except:
+                                print(20, 'Policy:', new_policy, 'Loc1:', loc1,  diff_loc1,'Loc2:', loc2, diff_loc2)
+                                print(prob_l1[:, 20 + diff_loc1])
+                                print(prob_l2[:, 20 + diff_loc2])
+                                exit()
+                            next_reward = r_sell[:, 20 + diff_loc1] + r_sell[:, 20 + diff_loc2] - new_policy * 2
+                            new_curr += t.sum(prob_of_nexts_r * (next_reward + gamma * state_value[pos_to_value(t.tensor([loc1 + diff_loc1, loc2 + diff_loc2]))]))
+                        if new_curr > max_state_value:
+                            max_state_value = new_curr
+                            if old_policy != new_policy:
+                                stable = False
+        
+ 
 policy_eval(state_value, policy)
 print(state_value)
-                
-                
+print(value_to_pos(state_value))
+plt.imshow((value_to_pos(state_value)).numpy(), cmap = 'hot', interpolation= 'nearest', origin = 'lower')                 
+plt.colorbar()
+plt.show()
+policy_improv(state_value, policy)
+plt.imshow((value_to_pos(policy)).numpy(), cmap = 'hot', interpolation = 'nearest', origin = 'lower')
+plt.show()
+
