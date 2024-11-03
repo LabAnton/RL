@@ -17,7 +17,7 @@ class Memory_buffer:
         self.histolen = history_length
         self.minibatch_size = minibatch_size
     
-    def add(self, state, action, next_state, reward, terminated):
+    def add(self, in_state, in_action, in_next_state, in_reward, in_terminated):
         #saves states, reward, terminated in list
         if len(self.state) > self.max_memory:
             self.state.pop(0)
@@ -26,22 +26,22 @@ class Memory_buffer:
             self.terminated.pop(0)
             self.action_taken.pop(0)
 
-        assert len(state.shape) == 4
-        assert len(next_state.shape) == 4
-        assert t.is_tensor(reward)
-        assert t.is_tensor(terminated)  
-        assert t.is_tensor(action)
+        assert len(in_state.shape) == 4
+        assert len(in_next_state.shape) == 4
+        assert t.is_tensor(in_reward)
+        assert t.is_tensor(in_terminated)  
+        assert t.is_tensor(in_action)
 
         #In case I miscalculated memory usage
         try:
-            self.state.append(state)
-            self.next_state.append(next_state)
-            self.reward.append(reward)
-            self.terminated.append(terminated)
-            self.action_taken.append(action)
+            self.state.append(in_state)
+            self.next_state.append(in_next_state)
+            self.reward.append(in_reward)
+            self.terminated.append(in_terminated)
+            self.action_taken.append(in_action)
         except:
-            print(len(state))
-            self.max_memory = len(state)-10
+            print(len(in_state))
+            self.max_memory = len(in_state)-10
         
     def sample(self):
         #we are looping a lot here with the histories. Can I save it more efficiently ?
@@ -62,9 +62,6 @@ class Memory_buffer:
     
     def last_state(self):
         return state[-1]
-    
-    def length(self):
-       return len(self.state) 
         
     def size(self):
         return len(self.state)

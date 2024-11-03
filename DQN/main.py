@@ -11,12 +11,12 @@ import cv2
 from tqdm import tqdm
 
 t.cuda.empty_cache()
-t.manual_seed(2)
+t.manual_seed(4)
 device = t.device('cuda' if t.cuda.is_available() else 'cpu')
 
 reward_per_game = []
-max_memory = 700000 
-games = 2000  
+max_memory = 800000 
+games = 6000  
 epsilon = 1 
 minibatch_size = 256 
 gamma = 0.99
@@ -36,6 +36,8 @@ start_learning = 50000
 env = gym.make("Pong-v4", render_mode = None, frameskip = skip_frame)
 
 dqn         = model.DQN(env, history_length).to(t.bfloat16).to(device)
+#Load in previous run
+dqn.load_state_dict(t.load('dqn_weights_10kgames_1.pth', weights_only = False))
 target_dqn  = model.DQN(env, history_length).to(t.bfloat16).to(device)
 #Initialize such that target_dqn == dqn
 target_dqn.load_state_dict(dqn.state_dict())
@@ -113,13 +115,13 @@ for game in tqdm(range(games)):
                 target_dqn.load_state_dict(target_dqn_state_dict)    
         time += 1
 
-    print('Memory Size:', memory.size())
+#    print('Memory size:',  memory.size())
     reward_per_game.append(sum(rewards))
 
     if epsilon > 0.01 and time > start_learning:
         epsilon -= 1/10000
      
-torch.save(dqn.state_dict(), 'dqn_weights_2kgames_1.pth')
+t.save(dqn.state_dict(), 'dqn_weights_16kgames_1.pth')
 fig_1, ax_1 = plt.subplots()
 ax_1.plot(np.arange(len(reward_per_game)), reward_per_game, 'x')
 plt.show()
